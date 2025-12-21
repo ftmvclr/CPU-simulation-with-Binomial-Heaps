@@ -50,7 +50,7 @@ int main(){
 	return 0;
 	for(i = 1; i < 10; i++){
 		quantum = i;
-		/*while(0){
+		while(0){
 			// now send the array to a function that will form all those binomial trees or something
 			binomial_tree_maker(); // let's assume this does reorder everything lmao
 			time++; // time flies
@@ -61,7 +61,7 @@ int main(){
 			// now that we found the highest priority node, we need to like execute it.
 			microP->t_remains = microP->t_remains - quantum;
 			update_processes_in_q(microP);
-		}*/
+		}
 	}
 }
 
