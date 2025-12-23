@@ -54,7 +54,7 @@ int main(){
 			// now send the array to a function that will form all those binomial trees or something
 			binomial_tree_maker(); // let's assume this does reorder everything lmao
 			time++; // time flies
-			if(anything_new){ // time has passed so we need to know if new stuff arrived
+			if(anything_new()){ // time has passed so we need to know if new stuff arrived
 				binomial_tree_maker();
 			}
 			microP = findmin;
@@ -122,9 +122,47 @@ void update_processes_in_q(Process *p){
 	traverse_nodes_in_q(header);
 }
 
-merge_root_lists(){
+Process *heapMerge(BinomialRoot *heap1, BinomialRoot *heap2) {
+	Process *head;
+	Process *tail;
+	Process *h1It;
+	Process *h2It;
 
+	if(heap1->processPtr == NULL)
+		return heap2->processPtr;
+	if(heap2->processPtr == NULL)
+		return heap1->processPtr;
+
+	h1It = heap1->processPtr;
+	h2It = heap2->processPtr;
+
+	if(h1It->degree <= h2It->degree) {
+		head = h1It;
+		h1It = h1It->sibling;
+	}
+	else{
+		head = h2It;
+		h2It = h2It->sibling;
+	}
+
+	tail = head;
+
+	while(h1It != NULL && h2It != NULL) {
+		if(h1It->degree <= h2It->degree) {
+			tail->sibling = h1It;
+			h1It = h1It->sibling;
+		}
+		else {
+			tail->sibling = h2It;
+			h2It = h2It->sibling;
+		}
+		tail = tail->sibling;
+	}
+
+	tail->sibling = (h1It != NULL) ? h1It : h2It;
+	return head;
 }
+
 Process *node_Create(char *id, int t_arr, int e_i){
 
 	Process *node = (Process *)malloc(sizeof(Process));
@@ -143,6 +181,18 @@ Process *node_Create(char *id, int t_arr, int e_i){
 	node->pri_factor = e_i;
 
 	return node;
+}
+
+BinomialRoot *heapCreate(){
+	BinomialRoot *heap;
+
+	heap = (BinomialRoot *)malloc(sizeof(BinomialRoot));
+	if(heap == NULL)
+		return NULL;
+
+	heap->processPtr = NULL;
+	heap->nextRoot = NULL; // addition
+	return heap;
 }
 
 void manage_input(FILE *f){
@@ -184,4 +234,9 @@ int there_exists_process(){
 		return 0;
 	else
 		return 1;
+}
+
+void heapFree(BinomialRoot *heap) {
+	while(heapMin(heap) != NULL);
+	free(heap);
 }
