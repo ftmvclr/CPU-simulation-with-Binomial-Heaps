@@ -11,7 +11,7 @@ typedef struct process{
 	struct process *sibling;
 	int degree; // number of children or something
 	char process_id[4]; // P99 3 chars at most
-	int e_i; // execution time
+	int e_i; // og execution time
 	double t_remains; // remaining exec time
 	int t_arr; // arrival time
 	int nth_rodeo; // initially 1, but if this aint its first rodeo n = ?
@@ -122,6 +122,57 @@ void update_processes_in_q(Process *p){
 	traverse_nodes_in_q(header);
 }
 
+Process *heapUnion(BinomialRoot *original, BinomialRoot *uni) {
+	Process *new_head;
+	Process *prev;
+	Process *aux;
+	Process *next;
+
+	new_head = heapMerge(original, uni);
+	original->processPtr = NULL;
+	uni->processPtr = NULL;
+
+	if(new_head == NULL)
+		return NULL;
+
+	prev = NULL;
+	aux = new_head;
+	next = aux->sibling;
+
+	while(next != NULL) {
+		if(aux->degree != next->degree ||
+			(next->sibling != NULL &&
+				next->sibling->degree == aux->degree)) {
+			prev = aux;
+			aux = next;
+		}
+		else {
+			if(aux->pri_factor <= next->pri_factor) { // TODO FIX THIS not exactly t_remains there is some penalty for reordering
+				aux->sibling = next->sibling;
+				next->parent = aux;
+				next->sibling = aux->child;
+				aux->child = next;
+				aux->degree++;
+			}
+			else {
+				if(prev == NULL)
+					new_head = next;
+				else
+					prev->sibling = next;
+
+				aux->parent = next;
+				aux->sibling = next->child;
+				next->child = aux;
+				next->degree++;
+				aux = next;
+			}
+		}
+		next = aux->sibling;
+	}
+
+	return new_head;
+}
+
 Process *heapMerge(BinomialRoot *heap1, BinomialRoot *heap2) {
 	Process *head;
 	Process *tail;
@@ -193,6 +244,56 @@ BinomialRoot *heapCreate(){
 	heap->processPtr = NULL;
 	heap->nextRoot = NULL; // addition
 	return heap;
+}
+
+void heapInsert(BinomialRoot *heap, int value)
+{
+	BinomialRoot *temp;
+	Process *node;
+
+	node = nodeInit(value);
+	if(node == NULL)
+		return;
+
+	temp = heapInit();
+	if(temp == NULL)
+		return;
+
+	temp->processPtr = node;
+	heap->processPtr = heapUnion(heap, temp);
+	free(temp);
+}
+
+void heapRemove(BinomialRoot *heap, Process *node, Process *before)
+{
+	BinomialRoot *temp;
+	Process *child;
+	Process *new_head;
+	Process *next;
+
+	if(node == heap->processPtr)
+		heap->processPtr = node->sibling;
+	else if(before != NULL)
+		before->sibling = node->sibling;
+
+	new_head = NULL;
+	child = node->child;
+
+	while(child != NULL) {
+		next = child->sibling;
+		child->sibling = new_head;
+		child->parent = NULL;
+		new_head = child;
+		child = next;
+	}
+
+	temp = heapInit();
+	if(temp == NULL)
+		return;
+
+	temp->processPtr = new_head;
+	heap->processPtr = heapUnion(heap, temp);
+	free(temp);
 }
 
 void manage_input(FILE *f){
