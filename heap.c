@@ -4,13 +4,19 @@
 #include <ctype.h>
 #include <math.h>
 #define _CRT_SECURE_NO_WARNINGS 
-
-/*rn i store all the input as a pointer array to process struct
+/*
+rn i store all the input as a pointer array to process struct
 then i will increment time one by one and check 
 if there are any new processes that should arrive at that time,
 then add that to the queue and find the min again, 
 make it the microP variable, 
 do that process until q time passes */
+
+/*
+so imma just check if the processPtr is null and if it is 
+i will send it to some function to add the first process 
+to the queue and i will just change the time to its arrival time accordingly*/
+
 struct binomialRoot;
 typedef struct process{
 	struct process *parent;
@@ -32,7 +38,6 @@ Process *header;
 
 struct binomialRoot{
 	struct process *processPtr;
-	struct binomialRoot *nextRoot;
 } *RoR; // root of the roots
 typedef struct binomialRoot BinomialRoot;
 
@@ -56,6 +61,10 @@ int anything_new();
 BinomialRoot **findmin();
 
 int main(){
+	RoR = (BinomialRoot *) malloc(sizeof(BinomialRoot));
+	if(RoR == NULL)
+		return;
+	RoR->processPtr = NULL;
 	FILE *file = fopen("input.txt", "r");
 	manage_input(file);
 
@@ -63,7 +72,8 @@ int main(){
 	BinomialRoot **accessor;
 	for(i = 1; i < 10; i++){
 		quantum = i;
-		while(0){
+		anything_new(); // for time 0
+		while(there_exists_process()){
 			// now send the array to a function that will form all those binomial trees or something
 			time++; // time flies
 			anything_new(); // time has passed so we need to know if new stuff arrived
@@ -73,14 +83,16 @@ int main(){
 			// now that we found the highest priority node, we need to like execute it.
 			microP->t_remains = microP->t_remains - quantum;
 			if(microP->t_remains == 0){ 
+				puts("2");
 				// remove completely
 				heapRemove(RoR, *accessor, *(accessor + 1));
 				traverse_nodes_in_q(header);
 			}
 			else{
+				puts("1");
 				heapRemove(RoR, accessor[0], accessor[1]);
 				traverse_nodes_in_q(header);
-				heapUnion(accessor[0]);
+				RoR->processPtr = heapUnion(accessor[0]);
 				// remove and then add back into the queue 
 			}
 //			update_processes_in_q(microP);
@@ -91,6 +103,7 @@ int main(){
 }
 
 BinomialRoot** findmin(){
+	puts("3");
 	// use RoR well because the min is one of the roots duh
 	if(RoR == NULL)
 		exit(5);
@@ -100,15 +113,18 @@ BinomialRoot** findmin(){
 	BinomialRoot *found_min = RoR;
 	while(current != NULL){
 		if(current->processPtr->pri_factor < found_min->processPtr->pri_factor){
+			puts("4");
 			found_min = current;
 			prev_of_min = temp_prev;
 		}
-		else if(current->processPtr->pri_factor = found_min->processPtr->pri_factor) // same e_i so there is tie breaker t_arr
+		else if(current->processPtr->pri_factor = found_min->processPtr->pri_factor){ // same e_i so there is tie breaker t_arr
 			if(current->processPtr->t_arr < found_min->processPtr->t_arr)
 				found_min = current;
+			puts("5");
+		}
 		// move a step
 		temp_prev = current;
-		current = current->nextRoot;
+		current = current->processPtr->sibling->as_root;
 	}
 // pass instead:	heapRemove(RoR, found_min, prev_of_min);
 	triple_ptrs[0] = found_min;
@@ -118,22 +134,24 @@ BinomialRoot** findmin(){
 }
 
 int anything_new(){
+	puts("6");
 	int i;
-	for(i = 0; i < 10; i++){
+	for(i = 0; i < process_amount; i++){
 		if(input[i]->t_arr == time)
+			puts("how about this"); // calls once
 			// we have newly arrived process here so add it to the queue
-			heapUnion(input[i]->as_root); // i hope this does add to the queue indeed!!
-			return 1;
+			RoR->processPtr = heapUnion(input[i]->as_root);
 	}
 	return 0;
 }
 
 // i think this is where we do the "preempting" thingy
-int check_microP(){
-	return 1;
-}
 
 void traverse_nodes_in_q(Process *ptr){
+	static int a = 0;
+	if(a == 0)
+		puts("rec");
+	a++;
 	if(ptr->child != NULL){
 		traverse_nodes_in_q(ptr->child);
 	}
@@ -144,6 +162,7 @@ void traverse_nodes_in_q(Process *ptr){
 }
 
 void update_processes_in_q(Process *p){
+	puts("shouldnt be called");
 	// the used pointer gets sliver bit of penalty for wasting CPU frfr
 	p->nth_rodeo++;
 	p->pri_factor = p->t_remains * 1 / (exp(-(pow(2 * p->t_remains / 3 * p->e_i, 3))));
@@ -152,23 +171,25 @@ void update_processes_in_q(Process *p){
 }
 
 Process *heapUnion(BinomialRoot *uni) {
+	puts("7");
 	Process *new_head;
 	Process *prev;
 	Process *aux;
 	Process *next;
 
-	new_head = heapMerge(RoR, uni);
+	new_head = heapMerge(RoR, uni); 
 	RoR->processPtr = NULL;
 	uni->processPtr = NULL;
 
-	if(new_head == NULL)
+	if(new_head == NULL) // this is always NULL for some reason
 		return NULL;
 
 	prev = NULL;
 	aux = new_head;
-	next = aux->sibling;
+	next = aux->sibling; // ok we are gone here accessing null's sibling
 
 	while(next != NULL) {
+		puts("code doesn't reach here");
 		if(aux->degree != next->degree ||
 			(next->sibling != NULL &&
 				next->sibling->degree == aux->degree)) {
@@ -203,6 +224,7 @@ Process *heapUnion(BinomialRoot *uni) {
 }
 
 void heapRemove(BinomialRoot *heap, BinomialRoot *primitive_node, BinomialRoot *primitive_before){
+	puts("8");
 	BinomialRoot *temp;
 	Process *child;
 	Process *new_head;
@@ -219,6 +241,7 @@ void heapRemove(BinomialRoot *heap, BinomialRoot *primitive_node, BinomialRoot *
 	child = node->child;
 
 	while(child != NULL) {
+		puts("9");
 		next = child->sibling;
 		child->sibling = new_head;
 		child->parent = NULL;
@@ -230,22 +253,11 @@ void heapRemove(BinomialRoot *heap, BinomialRoot *primitive_node, BinomialRoot *
 	if(temp == NULL)
 		return;
 	temp->processPtr = NULL;
-
+	puts("is it this one that calls stuff");
 	temp->processPtr = new_head;
-	heap->processPtr = heapUnion(temp);
+	heap->processPtr = heapUnion(temp); // no
 	free(temp);
 }
-
-/*BinomialRoot *heapInit(void){
-	BinomialRoot *heap;
-
-	heap = (BinomialRoot *)malloc(sizeof(BinomialRoot));
-	if(heap == NULL)
-		return NULL;
-
-	heap->processPtr = NULL;
-	return heap;
-}*/
 
 void manage_input(FILE *f){
 	int i = 0;
@@ -303,7 +315,6 @@ BinomialRoot *heapCreate(Process *node){
 
 	heap->processPtr = node;
 	node->as_root = heap;
-	heap->nextRoot = NULL; // addition
 	return heap;
 }
 
@@ -327,12 +338,20 @@ int there_exists_process(){
 	free(heap);
 }*/
 
+void panicCall(){
+
+}
 // don't call this function in main. union will call it
 Process *heapMerge(BinomialRoot *heap1, BinomialRoot *heap2) {
 	Process *head;
 	Process *tail;
 	Process *h1It;
 	Process *h2It;
+	puts("reaches here");
+
+	if(RoR == NULL){
+		panicCall();
+	}
 
 	if(heap1->processPtr == NULL)
 		return heap2->processPtr;
