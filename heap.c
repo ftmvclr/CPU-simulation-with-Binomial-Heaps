@@ -16,6 +16,9 @@ so imma just check if the processPtr is null and if it is
 i will send it to some function to add the first process 
 to the queue and i will just change the time to its arrival time accordingly*/
 
+/*priority formula is not correctly implemented
+find the global ei max and solve for that! */
+
 struct binomialRoot;
 typedef struct process{
 	struct process *parent;
@@ -25,6 +28,7 @@ typedef struct process{
 	char process_id[4]; // P99 3 chars at most
 	int e_i; // og execution time
 	double t_remains; // remaining exec time
+	int og_t_arr; // og arrival time
 	int t_arr; // arrival time
 	int nth_rodeo; // initially 1, but if this aint its first rodeo n = ?
 	double total_waited_time; // this gets updated with each insertion and we will divide this by process_amount to find awt of all nodes
@@ -33,6 +37,7 @@ typedef struct process{
 } Process;
 Process *microP = NULL; // where do we even update this
 Process *input[10];
+Process *input_backup[10];
 
 struct binomialRoot{
 	struct process *processPtr;
@@ -42,6 +47,7 @@ typedef struct binomialRoot BinomialRoot;
 int time; // odd but ok
 int quantum; // optimize for average waiting time
 int process_amount; // how many were there?
+int e_max = 0;
 Process *triple_ptrs[2];
 
 double average_wait_time();
@@ -59,29 +65,7 @@ int there_exists_process();
 int anything_new();
 void cleanUp(Process *heap);
 Process **findmin();
-
-void debug_print_list(Process *head) {
-	Process *current = head;
-	Process *seen[20]; // Simple array to track visited nodes
-	int count = 0;
-
-	printf("\n[DEBUG LIST]: ");
-	while(current != NULL) {
-		printf("%s (Deg %d) -> ", current->process_id, current->degree);
-
-		// Check if we have seen this node before
-		for(int i = 0; i < count; i++) {
-			if(seen[i] == current) {
-				printf("CYCLE DETECTED at %s! INFINITE LOOP IMMINENT.\n", current->process_id);
-				exit(666);
-			}
-		}
-		seen[count++] = current;
-		if(count >= 20) break; // Safety break
-		current = current->sibling;
-	}
-	printf("NULL\n");
-}
+void reset_input();
 
 int main(){
 	RoR = (BinomialRoot *)malloc(sizeof(BinomialRoot));
@@ -98,40 +82,40 @@ int main(){
 		quantum = 1;
 		anything_new(); // for time 0
 		while(there_exists_process()){
-			// now send the array to a function that will form all those binomial trees or something
 			time++; // time flies
+			printf("time: %d\n", time);
 			anything_new(); // time has passed so we need to know if new stuff arrived
-			// we queued the new stuff now what?
-			accessor = findmin(); // ok find the min, come back after that then what?
+			accessor = findmin();
 			microP = accessor[0];
 			// now that we found the highest priority node, we need to like execute it.
-			microP->t_remains = microP->t_remains - quantum;
+			microP->t_remains -= 1;
 			if(microP->t_remains <= 0){ 
-				puts("2");
 				// remove completely
 				heapRemove(RoR, *accessor, *(accessor + 1));
 				cleanUp(microP);
-
+				printf("%s supposed to be completely removed! \n", microP->process_id);
 				traverse_nodes_in_q(RoR->processPtr);
 			}
 			else{
-				puts("1");
 				// remove and then add back into the queue 
 				heapRemove(RoR, accessor[0], accessor[1]);
 				traverse_nodes_in_q(RoR->processPtr);
 				cleanUp(microP);
-				debug_print_list(RoR->processPtr);
-				RoR->processPtr = heapUnion(accessor[0]); // MEGA ERROR FIX THIS
+				printf("%s is preempted \n", microP->process_id);
+				microP->t_arr = time;
+				RoR->processPtr = heapUnion(accessor[0]);
 			}
-//			update_processes_in_q(microP);
 			// penalty for the already executed process
-			microP->pri_factor = microP->t_remains * 1 / (exp(-(pow(2 * microP->t_remains / 3 * microP->e_i, 3))));
+			microP->pri_factor = microP->t_remains * (1.0 / exp(-pow((2.0 * microP->t_remains) / (3.0 * e_max), 3)));
 		}
 	//}
+		average_wait_time();
+		reset_input();
+		average_wait_time();
 }
 
 Process** findmin(){
-	puts("3");
+//	puts("3");
 	// use RoR well because the min is one of the roots duh
 	if(RoR == NULL)
 		exit(5);
@@ -141,7 +125,7 @@ Process** findmin(){
 	Process *found_min = RoR->processPtr;
 	while(current != NULL){
 		if(current->pri_factor < found_min->pri_factor){
-			puts("4");
+	//		puts("4");
 			found_min = current;
 			prev_of_min = temp_prev;
 		}
@@ -150,7 +134,7 @@ Process** findmin(){
 				found_min = current;
 				prev_of_min = temp_prev;
 			}
-			puts("5");
+//			puts("5");
 		}
 		// move a step
 		temp_prev = current;
@@ -163,11 +147,11 @@ Process** findmin(){
 }
 
 int anything_new(){
-	puts("6");
+//	puts("6");
 	int i;
 	for(i = 0; i < process_amount; i++){
 		if(input[i]->t_arr == time){
-			puts("how about this"); // calls once
+//			puts("how about this"); // calls once
 			// we have newly arrived process here so add it to the queue
 			RoR->processPtr = heapUnion(input[i]);
 		}
@@ -177,11 +161,6 @@ int anything_new(){
 
 //we literally execute half of this function and then quit with some code FIX THIS!!
 void traverse_nodes_in_q(Process *ptr){
-	static int a = 0;
-	if(a == 0)
-		puts("rec");
-	a++;
-	puts("wait-");
 	if(ptr == NULL){
 		return;
 	}
@@ -193,21 +172,12 @@ void traverse_nodes_in_q(Process *ptr){
 		puts("sibling isnt null");
 		traverse_nodes_in_q(ptr->sibling);
 	}
-	puts("how many times does it even?"); // 3 for now
+//	puts("how many times does it even?"); // 3 for now
 	ptr->total_waited_time++;
 }
 
-void update_processes_in_q(Process *p){
-	puts("shouldnt be called");
-	// the used pointer gets sliver bit of penalty for wasting CPU frfr
-	p->nth_rodeo++;
-	p->pri_factor = p->t_remains * 1 / (exp(-(pow(2 * p->t_remains / 3 * p->e_i, 3))));
-	// rest of the nodes need their wait time upped lol
-//	traverse_nodes_in_q(header);
-}
-
 Process *heapUnion(Process *uni) {
-	puts("7");
+//	puts("7");
 	Process *new_head;
 	Process *prev;
 	Process *aux;
@@ -223,7 +193,7 @@ Process *heapUnion(Process *uni) {
 	prev = NULL;
 	aux = new_head;
 	next = aux->sibling; // ok we are gone here accessing null's sibling
-	puts("inf loop check");
+//	puts("inf loop check");
 	while(next != NULL) {
 	//	puts("code doesn't reach here");
 		if(aux->degree != next->degree ||
@@ -298,7 +268,7 @@ void manage_input(FILE *f){
 		manage_line(line, i);
 		i++;
 	}
-	for(i = 0; i < 10 && input[i] != NULL; i++){ 
+	for(i = 0; i < 10 && input[i] != NULL; i++){
 		printf("created node --- id: %s, ei: %d, t_arr: %d\n",
 			input[i]->process_id, input[i]->e_i, input[i]->t_arr);
 	}
@@ -312,7 +282,8 @@ void manage_line(char *line, int i){
 
 	int ei = atoi(eiptr);
 	int t_arr = atoi(t_arrptr);
-	
+	if(ei > e_max)
+		e_max = ei;
 	node_create_returns_root(id, t_arr, ei, i);
 }
 
@@ -329,11 +300,14 @@ BinomialRoot *node_create_returns_root(char *id, int t_arr, int e_i, int i){
 	node->e_i = e_i;
 	node->t_remains = e_i;
 	node->t_arr = t_arr;
+	node->og_t_arr = t_arr;
 	node->nth_rodeo = 1;
 	node->total_waited_time = 0;
 	node->pri_factor = e_i;
+	
 
 	input[i] = node;
+	input_backup[i] = node; // should only copy the basis
 	return heapCreate(node);
 }
 
@@ -352,6 +326,7 @@ BinomialRoot *heapCreate(Process *node){
 double average_wait_time(){ // all nodes
 	int i; double t = 0;
 	for(i = 0; i < process_amount; i++){
+		printf("%s waited this much: %f\n", input[i]->process_id, input[i]->total_waited_time);
 		t += input[i]->total_waited_time;
 	}
 	return t / process_amount;
@@ -371,8 +346,25 @@ void cleanUp(Process *heap){
 	microP->degree = 0;
 }
 
-void panicCall(){
+void panicCall(){ // ?
 
+}
+
+void reset_input(){
+	int i;
+	if(RoR != NULL) {
+		RoR->processPtr = NULL;
+	}
+	for(i = 0; i < process_amount; i++){
+		input[i]->total_waited_time = 0;
+		input[i]->t_remains = input[i]->e_i;
+		input[i]->t_arr = input[i]->og_t_arr;
+		input[i]->parent = NULL;
+		input[i]->sibling = NULL;
+		input[i]->child = NULL;
+		input[i]->degree = 0;
+	}
+	time = 0; 
 }
 // don't call this function in main. union will call it
 Process *heapMerge(BinomialRoot *heap1, Process *proc) {
@@ -380,12 +372,12 @@ Process *heapMerge(BinomialRoot *heap1, Process *proc) {
 	Process *tail;
 	Process *h1It;
 	Process *h2It;
-	puts("reaches here");
+//	puts("reaches here");
 
-	if(RoR == NULL){
+	if(RoR->processPtr == NULL){ // FIX THIS
 		panicCall();
 	}
-	puts("reaches here question mark");
+//	puts("reaches here question mark");
 	if(heap1->processPtr == NULL)
 		return proc;
 	if(proc == NULL)
