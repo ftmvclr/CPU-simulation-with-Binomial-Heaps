@@ -47,6 +47,7 @@ typedef struct binomialRoot BinomialRoot;
 int time; // odd but ok
 int quantum; // optimize for average waiting time
 int process_amount; // how many were there?
+int process_handled; // AKA put in the queue at least once
 int e_max = 0;
 Process *triple_ptrs[2];
 
@@ -80,9 +81,7 @@ int main(){
 	Process **accessor;
 //	for(i = 1; i < 10; i++){
 		quantum = 1;
-		anything_new(); // for time 0
-		while(there_exists_process()){
-			time++; // time flies
+		while(there_exists_process() || (process_amount - process_handled > 0)){
 			printf("time: %d\n", time);
 			anything_new(); // time has passed so we need to know if new stuff arrived
 			accessor = findmin();
@@ -102,20 +101,20 @@ int main(){
 				traverse_nodes_in_q(RoR->processPtr);
 				cleanUp(microP);
 				printf("%s is preempted \n", microP->process_id);
-				microP->t_arr = time;
+				microP->t_arr = time + 1;
 				RoR->processPtr = heapUnion(accessor[0]);
 			}
 			// penalty for the already executed process
 			microP->pri_factor = microP->t_remains * (1.0 / exp(-pow((2.0 * microP->t_remains) / (3.0 * e_max), 3)));
+			time++; // time flies
 		}
 	//}
 		average_wait_time();
 		reset_input();
-		average_wait_time();
+
 }
 
 Process** findmin(){
-//	puts("3");
 	// use RoR well because the min is one of the roots duh
 	if(RoR == NULL)
 		exit(5);
@@ -125,16 +124,18 @@ Process** findmin(){
 	Process *found_min = RoR->processPtr;
 	while(current != NULL){
 		if(current->pri_factor < found_min->pri_factor){
-	//		puts("4");
+			printf("%s pri: %f\n", current->process_id, current->pri_factor);
+			printf("%s pri: %f\n", found_min->process_id, found_min->pri_factor);
 			found_min = current;
 			prev_of_min = temp_prev;
 		}
 		else if(current->pri_factor == found_min->pri_factor){ // same e_i so there is tie breaker t_arr
+			printf("%s tieb: %f\n", current->process_id, current->pri_factor);
+			printf("%s tieb: %f\n", found_min->process_id, found_min->pri_factor);
 			if(current->t_arr < found_min->t_arr){
 				found_min = current;
 				prev_of_min = temp_prev;
 			}
-//			puts("5");
 		}
 		// move a step
 		temp_prev = current;
@@ -147,13 +148,11 @@ Process** findmin(){
 }
 
 int anything_new(){
-//	puts("6");
 	int i;
 	for(i = 0; i < process_amount; i++){
-		if(input[i]->t_arr == time){
-//			puts("how about this"); // calls once
-			// we have newly arrived process here so add it to the queue
+		if(input[i]->og_t_arr == time){
 			RoR->processPtr = heapUnion(input[i]);
+			process_handled++;
 		}
 	}
 	return 0;
@@ -172,12 +171,10 @@ void traverse_nodes_in_q(Process *ptr){
 		puts("sibling isnt null");
 		traverse_nodes_in_q(ptr->sibling);
 	}
-//	puts("how many times does it even?"); // 3 for now
 	ptr->total_waited_time++;
 }
 
 Process *heapUnion(Process *uni) {
-//	puts("7");
 	Process *new_head;
 	Process *prev;
 	Process *aux;
@@ -187,15 +184,13 @@ Process *heapUnion(Process *uni) {
 	RoR->processPtr = NULL;
 //	uni/*->processPtr*/ = NULL;
 
-	if(new_head == NULL) // this is always NULL for some reason
+	if(new_head == NULL) 
 		return NULL;
 
 	prev = NULL;
 	aux = new_head;
 	next = aux->sibling; // ok we are gone here accessing null's sibling
-//	puts("inf loop check");
 	while(next != NULL) {
-	//	puts("code doesn't reach here");
 		if(aux->degree != next->degree ||
 			(next->sibling != NULL &&
 				next->sibling->degree == aux->degree)) {
@@ -372,12 +367,7 @@ Process *heapMerge(BinomialRoot *heap1, Process *proc) {
 	Process *tail;
 	Process *h1It;
 	Process *h2It;
-//	puts("reaches here");
 
-	if(RoR->processPtr == NULL){ // FIX THIS
-		panicCall();
-	}
-//	puts("reaches here question mark");
 	if(heap1->processPtr == NULL)
 		return proc;
 	if(proc == NULL)
