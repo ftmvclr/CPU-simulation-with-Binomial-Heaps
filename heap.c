@@ -11,13 +11,8 @@ if there are any new processes that should arrive at that time,
 then add that to the queue and find the min again, 
 make it the microP variable, 
 do that process until q time passes */
-/*
-so imma just check if the processPtr is null and if it is 
-i will send it to some function to add the first process 
-to the queue and i will just change the time to its arrival time accordingly*/
 
-/*priority formula is not correctly implemented
-find the global ei max and solve for that! */
+// we need to format the output and that is it
 
 struct binomialRoot;
 typedef struct process{
@@ -44,12 +39,13 @@ struct binomialRoot{
 } *RoR; // root of the roots
 typedef struct binomialRoot BinomialRoot;
 
-int time; // odd but ok
+int time = 0; // odd but ok
 int quantum; // optimize for average waiting time
 int process_amount; // how many were there?
 int process_handled; // AKA put in the queue at least once
 int e_max = 0;
 Process *triple_ptrs[2];
+Process **accessor;
 
 double average_wait_time();
 void manage_line(char *line, int i);
@@ -67,6 +63,7 @@ int anything_new();
 void cleanUp(Process *heap);
 Process **findmin();
 void reset_input();
+void engine(int quantum);
 
 int main(){
 	RoR = (BinomialRoot *)malloc(sizeof(BinomialRoot));
@@ -77,43 +74,44 @@ int main(){
 	FILE *file = fopen("input.txt", "r");
 	manage_input(file);
 
-//	int i;
-	Process **accessor;
-//	for(i = 1; i < 10; i++){
-		quantum = 1;
-		while(there_exists_process() || (process_amount - process_handled > 0)){
-			printf("time: %d\n", time);
-			anything_new(); // time has passed so we need to know if new stuff arrived
-			accessor = findmin();
-			microP = accessor[0];
-			// now that we found the highest priority node, we need to like execute it.
-			microP->t_remains -= 1;
-			if(microP->t_remains <= 0){ 
-				// remove completely
-				heapRemove(RoR, *accessor, *(accessor + 1));
-				cleanUp(microP);
-				printf("%s supposed to be completely removed! \n", microP->process_id);
-				traverse_nodes_in_q(RoR->processPtr);
-			}
-			else{
-				// remove and then add back into the queue 
-				heapRemove(RoR, accessor[0], accessor[1]);
-				traverse_nodes_in_q(RoR->processPtr);
-				cleanUp(microP);
-				printf("%s is preempted \n", microP->process_id);
-				microP->t_arr = time + 1;
-				RoR->processPtr = heapUnion(accessor[0]);
-			}
-			// penalty for the already executed process
-			microP->pri_factor = microP->t_remains * (1.0 / exp(-pow((2.0 * microP->t_remains) / (3.0 * e_max), 3)));
-			time++; // time flies
-		}
-	//}
-		average_wait_time();
+	int i;
+	for(i = 1; i < 10; i++){
+		quantum = i;
+		printf("for quantum %d ", quantum);
+		engine(quantum);
+		printf("%f\n", average_wait_time());
 		reset_input();
-
+	}
 }
+void engine(int quantum){
+	while(there_exists_process() || (process_amount - process_handled > 0)){
 
+		if(time == 0) anything_new();
+		accessor = findmin();
+		microP = accessor[0];
+		heapRemove(RoR, accessor[0], accessor[1]);
+
+		int j;
+		for(j = 0; j < quantum; j++){
+			microP->t_remains--;
+			time++;
+			traverse_nodes_in_q(RoR->processPtr);
+			anything_new();
+			if(microP->t_remains <= 0){
+				break;
+			}
+		}
+		if(microP->t_remains <= 0){
+			cleanUp(microP);
+		}
+		else{
+			cleanUp(microP);
+			microP->t_arr = time;
+			microP->pri_factor = microP->t_remains * (1.0 / exp(-pow((2.0 * microP->t_remains) / (3.0 * e_max), 3)));
+			RoR->processPtr = heapUnion(microP);
+		}
+	}
+}
 Process** findmin(){
 	// use RoR well because the min is one of the roots duh
 	if(RoR == NULL)
@@ -124,14 +122,10 @@ Process** findmin(){
 	Process *found_min = RoR->processPtr;
 	while(current != NULL){
 		if(current->pri_factor < found_min->pri_factor){
-			printf("%s pri: %f\n", current->process_id, current->pri_factor);
-			printf("%s pri: %f\n", found_min->process_id, found_min->pri_factor);
 			found_min = current;
 			prev_of_min = temp_prev;
 		}
 		else if(current->pri_factor == found_min->pri_factor){ // same e_i so there is tie breaker t_arr
-			printf("%s tieb: %f\n", current->process_id, current->pri_factor);
-			printf("%s tieb: %f\n", found_min->process_id, found_min->pri_factor);
 			if(current->t_arr < found_min->t_arr){
 				found_min = current;
 				prev_of_min = temp_prev;
@@ -158,17 +152,14 @@ int anything_new(){
 	return 0;
 }
 
-//we literally execute half of this function and then quit with some code FIX THIS!!
 void traverse_nodes_in_q(Process *ptr){
 	if(ptr == NULL){
 		return;
 	}
 	if(ptr->child != NULL){
-		puts("child isnt null");
 		traverse_nodes_in_q(ptr->child);
 	}
 	if(ptr->sibling != NULL){
-		puts("sibling isnt null");
 		traverse_nodes_in_q(ptr->sibling);
 	}
 	ptr->total_waited_time++;
@@ -263,10 +254,10 @@ void manage_input(FILE *f){
 		manage_line(line, i);
 		i++;
 	}
-	for(i = 0; i < 10 && input[i] != NULL; i++){
+	for(i = 0; i < 10 && input[i] != NULL; i++);/*{
 		printf("created node --- id: %s, ei: %d, t_arr: %d\n",
 			input[i]->process_id, input[i]->e_i, input[i]->t_arr);
-	}
+	}*/
 	process_amount = i; // does work don't change
 }
  
@@ -321,7 +312,7 @@ BinomialRoot *heapCreate(Process *node){
 double average_wait_time(){ // all nodes
 	int i; double t = 0;
 	for(i = 0; i < process_amount; i++){
-		printf("%s waited this much: %f\n", input[i]->process_id, input[i]->total_waited_time);
+//		printf("%s waited this much: %f\n", input[i]->process_id, input[i]->total_waited_time);
 		t += input[i]->total_waited_time;
 	}
 	return t / process_amount;
@@ -344,12 +335,12 @@ void cleanUp(Process *heap){
 void panicCall(){ // ?
 
 }
-
 void reset_input(){
 	int i;
 	if(RoR != NULL) {
 		RoR->processPtr = NULL;
 	}
+	process_handled = 0;
 	for(i = 0; i < process_amount; i++){
 		input[i]->total_waited_time = 0;
 		input[i]->t_remains = input[i]->e_i;
@@ -359,8 +350,9 @@ void reset_input(){
 		input[i]->child = NULL;
 		input[i]->degree = 0;
 	}
-	time = 0; 
+	time = 0;
 }
+
 // don't call this function in main. union will call it
 Process *heapMerge(BinomialRoot *heap1, Process *proc) {
 	Process *head;
