@@ -1,4 +1,5 @@
-﻿#include <stdio.h>
+﻿// FATIMA AVCILAR 150123017
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -13,6 +14,10 @@ make it the microP variable,
 do that process until q time passes */
 
 // we need to format the output and that is it
+/*
+Which process is allocated to the CPU at each time unit
+All processes in the heap and their priority values at each time unit
+*/
 
 struct binomialRoot;
 typedef struct process{
@@ -51,7 +56,7 @@ double average_wait_time();
 void manage_line(char *line, int i);
 void manage_input(FILE *f);
 BinomialRoot *node_create_returns_root(char *id, int t_arr, int e_i, int i);
-void traverse_nodes_in_q(Process *ptr);
+void waiting_room(Process *ptr);
 Process *heapUnion(Process *uni);
 void update_processes_in_q(Process *);
 void heapRemove(BinomialRoot *heap, Process *node, Process *before);
@@ -63,9 +68,14 @@ int anything_new();
 void cleanUp(Process *heap);
 Process **findmin();
 void reset_input();
-void engine(int quantum);
+void engine(int, int);
+void queue_printer(Process *ptr, int);
 
 int main(){
+	int print_optimum = 0;
+	int superior_quantum = 0;
+	int temp_time = 99999999;
+
 	RoR = (BinomialRoot *)malloc(sizeof(BinomialRoot));
 	if(RoR == NULL)
 		return;
@@ -77,25 +87,40 @@ int main(){
 	int i;
 	for(i = 1; i < 10; i++){
 		quantum = i;
-		printf("for quantum %d ", quantum);
-		engine(quantum);
-		printf("%f\n", average_wait_time());
+		engine(quantum, print_optimum);
+		if(average_wait_time() < temp_time){
+			temp_time = average_wait_time();
+			superior_quantum = quantum;
+		}
 		reset_input();
 	}
+	engine(superior_quantum, ++print_optimum);
 }
-void engine(int quantum){
+void engine(int quantum, int bool_opt){
+	int i;
+	if(bool_opt){
+		printf("An optimum q = %d\n", quantum);
+		printf("Time\t\tProcesses in BH\t\tPriority Value of Processes in BH\n0\t\t");
+	}
 	while(there_exists_process() || (process_amount - process_handled > 0)){
 
 		if(time == 0) anything_new();
 		accessor = findmin();
 		microP = accessor[0];
+		if(bool_opt){
+			queue_printer(RoR->processPtr, 0); // id names
+			queue_printer(RoR->processPtr, 1); // factors numerically
+			puts("");
+		}
 		heapRemove(RoR, accessor[0], accessor[1]);
 
 		int j;
 		for(j = 0; j < quantum; j++){
 			microP->t_remains--;
 			time++;
-			traverse_nodes_in_q(RoR->processPtr);
+			if(bool_opt)
+				printf("%d\t\t", time);
+			waiting_room(RoR->processPtr);
 			anything_new();
 			if(microP->t_remains <= 0){
 				break;
@@ -110,6 +135,14 @@ void engine(int quantum){
 			microP->pri_factor = microP->t_remains * (1.0 / exp(-pow((2.0 * microP->t_remains) / (3.0 * e_max), 3)));
 			RoR->processPtr = heapUnion(microP);
 		}
+	}
+	if(bool_opt){
+		printf("\nPID\t\tWaiting Time\n");
+		for(i = 0; i < 10 && input[i] != NULL; i++){
+			printf("%-4s%20.0f\n", input[i]->process_id, input[i]->total_waited_time);
+		}
+		printf("AWT: %.3f\n", average_wait_time());
+
 	}
 }
 Process** findmin(){
@@ -151,16 +184,32 @@ int anything_new(){
 	}
 	return 0;
 }
-
-void traverse_nodes_in_q(Process *ptr){
+// for mode 0, only print the ids; else print prifactors
+void queue_printer(Process *ptr, int mode){
 	if(ptr == NULL){
 		return;
 	}
 	if(ptr->child != NULL){
-		traverse_nodes_in_q(ptr->child);
+		queue_printer(ptr->child, mode);
 	}
 	if(ptr->sibling != NULL){
-		traverse_nodes_in_q(ptr->sibling);
+		queue_printer(ptr->sibling, mode);
+	}
+	if(!mode)
+		printf("%-4s", ptr->process_id);
+	else
+		printf("%18.3f", ptr->pri_factor);
+}
+
+void waiting_room(Process *ptr){
+	if(ptr == NULL){
+		return;
+	}
+	if(ptr->child != NULL){
+		waiting_room(ptr->child);
+	}
+	if(ptr->sibling != NULL){
+		waiting_room(ptr->sibling);
 	}
 	ptr->total_waited_time++;
 }
@@ -171,16 +220,16 @@ Process *heapUnion(Process *uni) {
 	Process *aux;
 	Process *next;
 
-	new_head = heapMerge(RoR, uni); 
+	new_head = heapMerge(RoR, uni);
 	RoR->processPtr = NULL;
-//	uni/*->processPtr*/ = NULL;
 
-	if(new_head == NULL) 
+	if(new_head == NULL)
 		return NULL;
 
 	prev = NULL;
 	aux = new_head;
-	next = aux->sibling; // ok we are gone here accessing null's sibling
+	next = aux->sibling;
+
 	while(next != NULL) {
 		if(aux->degree != next->degree ||
 			(next->sibling != NULL &&
@@ -189,7 +238,19 @@ Process *heapUnion(Process *uni) {
 			aux = next;
 		}
 		else {
-			if(aux->pri_factor <= next->pri_factor) {
+
+			int make_aux_parent = 0;
+
+			if(aux->pri_factor < next->pri_factor) {
+				make_aux_parent = 1; 
+			}
+			else if(aux->pri_factor == next->pri_factor) {
+				if(aux->t_arr <= next->t_arr) {
+					make_aux_parent = 1;
+				}
+			}
+
+			if(make_aux_parent) {
 				aux->sibling = next->sibling;
 				next->parent = aux;
 				next->sibling = aux->child;
@@ -213,6 +274,7 @@ Process *heapUnion(Process *uni) {
 	}
 	return new_head;
 }
+
 void heapRemove(BinomialRoot *heap, Process *node, Process *before) {
 	BinomialRoot *temp;
 	Process *child;
@@ -349,6 +411,7 @@ void reset_input(){
 		input[i]->sibling = NULL;
 		input[i]->child = NULL;
 		input[i]->degree = 0;
+		input[i]->pri_factor = input[i]->e_i;
 	}
 	time = 0;
 }
