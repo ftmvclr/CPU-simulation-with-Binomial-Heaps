@@ -5,20 +5,8 @@
 #include <ctype.h>
 #include <math.h>
 #define _CRT_SECURE_NO_WARNINGS 
-/*
-rn i store all the input as a pointer array to process struct
-then i will increment time one by one and check 
-if there are any new processes that should arrive at that time,
-then add that to the queue and find the min again, 
-make it the microP variable, 
-do that process until q time passes */
 
 // we need to format the output and that is it
-/*
-Which process is allocated to the CPU at each time unit
-All processes in the heap and their priority values at each time unit
-*/
-
 struct binomialRoot;
 typedef struct process{
 	struct process *parent;
@@ -36,19 +24,19 @@ typedef struct process{
 	struct binomialRoot *as_root;
 } Process;
 Process *microP = NULL; // where do we even update this
-Process *input[10];
-Process *input_backup[10];
+Process *input[100];
 
 struct binomialRoot{
 	struct process *processPtr;
 } *RoR; // root of the roots
 typedef struct binomialRoot BinomialRoot;
 
-int time = 0; // odd but ok
+int time = 0; // global time
 int quantum; // optimize for average waiting time
-int process_amount; // how many were there?
-int process_handled; // AKA put in the queue at least once
-int e_max = 0;
+int process_amount; // # of nodes in the input file
+int process_handled; // AKA # of nodes put in the queue at least once
+int e_max = 0; // global max execution time
+int rec_num = 0;
 Process *triple_ptrs[2];
 Process **accessor;
 
@@ -60,7 +48,6 @@ void waiting_room(Process *ptr);
 Process *heapUnion(Process *uni);
 void update_processes_in_q(Process *);
 void heapRemove(BinomialRoot *heap, Process *node, Process *before);
-//void heapRemove(BinomialRoot *heap, BinomialRoot *primitive_node, BinomialRoot *primitive_before);
 Process *heapMerge(BinomialRoot *heap1, Process *proc);
 BinomialRoot *heapCreate(Process *node);
 int there_exists_process();
@@ -68,13 +55,14 @@ int anything_new();
 void cleanUp(Process *heap);
 Process **findmin();
 void reset_input();
-void engine(int, int);
+void engine(int[], int);
 void queue_printer(Process *ptr, int);
 
 int main(){
 	int print_optimum = 0;
-	int superior_quantum = 0;
-	int temp_time = 99999999;
+	int superior_quantum[10] = {0};
+	double temp_awt;
+	double min_awt_ever = 99999999;
 
 	RoR = (BinomialRoot *)malloc(sizeof(BinomialRoot));
 	if(RoR == NULL)
@@ -84,31 +72,48 @@ int main(){
 	FILE *file = fopen("input.txt", "r");
 	manage_input(file);
 
-	int i;
+	int i, j = 0;
 	for(i = 1; i < 10; i++){
 		quantum = i;
-		engine(quantum, print_optimum);
-		if(average_wait_time() < temp_time){
-			temp_time = average_wait_time();
-			superior_quantum = quantum;
+		engine(NULL, quantum);
+		temp_awt = average_wait_time();
+		if(temp_awt < min_awt_ever){ // new quantum is better than the ones we found before
+			min_awt_ever = temp_awt;
+			j = 0; // reset
+			superior_quantum[j++] = quantum;
+		}
+		else if(temp_awt == min_awt_ever){
+			superior_quantum[j++] = quantum; 
 		}
 		reset_input();
 	}
-	engine(superior_quantum, ++print_optimum);
+	int k;
+	for(k = 0; k < j; k++){
+		engine(superior_quantum, superior_quantum[k]);
+		reset_input();
+	}
 }
-void engine(int quantum, int bool_opt){
+void engine(int superior_quantum[], int quantum){
 	int i;
-	if(bool_opt){
+	if(superior_quantum != NULL){
+		// just the titles
 		printf("An optimum q = %d\n", quantum);
-		printf("Time\t\tProcesses in BH\t\tPriority Value of Processes in BH\n0\t\t");
+		printf("Time\t\tProcesses in BH\t\t\t\tPriority Value of Processes in BH\n");
 	}
 	while(there_exists_process() || (process_amount - process_handled > 0)){
 
 		if(time == 0) anything_new();
 		accessor = findmin();
 		microP = accessor[0];
-		if(bool_opt){
+		if(superior_quantum != NULL){
+			// formatting issue!!
+			printf("%d\t\t", time);
 			queue_printer(RoR->processPtr, 0); // id names
+			if(rec_num == 1){
+				printf("\t");
+			}
+			printf("\t\t\t\t");
+			rec_num = 0;
 			queue_printer(RoR->processPtr, 1); // factors numerically
 			puts("");
 		}
@@ -118,8 +123,7 @@ void engine(int quantum, int bool_opt){
 		for(j = 0; j < quantum; j++){
 			microP->t_remains--;
 			time++;
-			if(bool_opt)
-				printf("%d\t\t", time);
+			
 			waiting_room(RoR->processPtr);
 			anything_new();
 			if(microP->t_remains <= 0){
@@ -136,12 +140,13 @@ void engine(int quantum, int bool_opt){
 			RoR->processPtr = heapUnion(microP);
 		}
 	}
-	if(bool_opt){
-		printf("\nPID\t\tWaiting Time\n");
-		for(i = 0; i < 10 && input[i] != NULL; i++){
-			printf("%-4s%20.0f\n", input[i]->process_id, input[i]->total_waited_time);
+	if(superior_quantum != NULL){
+		printf("%d\t\tEMPTY", time);
+		printf("\n\nPID\t\tWaiting Time\n");
+		for(i = 0; i < 99 && input[i] != NULL; i++){
+			printf("%-4s%18.0f\n", input[i]->process_id, input[i]->total_waited_time);
 		}
-		printf("AWT: %.3f\n", average_wait_time());
+		printf("AWT: %.3f\n\n", average_wait_time());
 
 	}
 }
@@ -195,10 +200,12 @@ void queue_printer(Process *ptr, int mode){
 	if(ptr->sibling != NULL){
 		queue_printer(ptr->sibling, mode);
 	}
-	if(!mode)
+	if(!mode){
 		printf("%-4s", ptr->process_id);
+		rec_num++;
+	}
 	else
-		printf("%18.3f", ptr->pri_factor);
+		printf("%s: %.3f ",ptr->process_id, ptr->pri_factor);
 }
 
 void waiting_room(Process *ptr){
@@ -311,12 +318,12 @@ void heapRemove(BinomialRoot *heap, Process *node, Process *before) {
 void manage_input(FILE *f){
 	int i = 0;
 	char line[12];
-	while(fgets(line, 12, f) != NULL && i < 10){
+	while(fgets(line, 12, f) != NULL && i < 99){
 		line[11] = '\0';
 		manage_line(line, i);
 		i++;
 	}
-	for(i = 0; i < 10 && input[i] != NULL; i++);/*{
+	for(i = 0; i < 99 && input[i] != NULL; i++);/*{
 		printf("created node --- id: %s, ei: %d, t_arr: %d\n",
 			input[i]->process_id, input[i]->e_i, input[i]->t_arr);
 	}*/
@@ -355,7 +362,6 @@ BinomialRoot *node_create_returns_root(char *id, int t_arr, int e_i, int i){
 	
 
 	input[i] = node;
-	input_backup[i] = node; // should only copy the basis
 	return heapCreate(node);
 }
 
@@ -394,9 +400,6 @@ void cleanUp(Process *heap){
 	microP->degree = 0;
 }
 
-void panicCall(){ // ?
-
-}
 void reset_input(){
 	int i;
 	if(RoR != NULL) {
