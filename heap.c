@@ -1,85 +1,83 @@
-﻿// FATIMA AVCILAR 150123017
+﻿/* FATIMA AVCILAR 150123017*/
+#define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <math.h>
-#define _CRT_SECURE_NO_WARNINGS 
 
-// we need to format the output and that is it
 struct binomialRoot;
 typedef struct process{
 	struct process *parent;
 	struct process *child;
 	struct process *sibling;
-	int degree; // number of children or something
-	char process_id[4]; // P99 3 chars at most
-	int e_i; // og execution time
-	double t_remains; // remaining exec time
-	int og_t_arr; // og arrival time
-	int t_arr; // arrival time
-	int nth_rodeo; // initially 1, but if this aint its first rodeo n = ?
-	double total_waited_time; // this gets updated with each insertion and we will divide this by process_amount to find awt of all nodes
+	int degree; /* root's # of children*/
+	char process_id[4]; /* P99, 3 chars at most*/
+	int e_i; /* og execution time*/
+	double t_remains; /* exec time (updated)*/
+	int og_t_arr; /* og arrival time*/
+	int t_arr; /* arrival time (updated)*/
+	double total_waited_time;
 	double pri_factor;
-	struct binomialRoot *as_root;
 } Process;
-Process *microP = NULL; // where do we even update this
+Process *microP = NULL; /* where do we even update this*/
 Process *input[100];
 
 struct binomialRoot{
 	struct process *processPtr;
-} *RoR; // root of the roots
+} *RoR; /* root of the roots*/
 typedef struct binomialRoot BinomialRoot;
 
-int time = 0; // global time
-int quantum; // optimize for average waiting time
-int process_amount; // # of nodes in the input file
-int process_handled; // AKA # of nodes put in the queue at least once
-int e_max = 0; // global max execution time
+int time = 0; /* global time*/
+int quantum; /* optimize for average waiting time*/
+int process_amount; /* # of nodes in the input file*/
+int process_handled; /* AKA # of nodes put in the queue at least once*/
+int e_max = 0; /* global max execution time*/
 int rec_num = 0;
+double times[2];
 Process *triple_ptrs[2];
 Process **accessor;
 
-double average_wait_time();
 void manage_line(char *line, int i);
 void manage_input(FILE *f);
-BinomialRoot *node_create_returns_root(char *id, int t_arr, int e_i, int i);
-void waiting_room(Process *ptr);
-Process *heapUnion(Process *uni);
-void update_processes_in_q(Process *);
-void heapRemove(BinomialRoot *heap, Process *node, Process *before);
-Process *heapMerge(BinomialRoot *heap1, Process *proc);
-BinomialRoot *heapCreate(Process *node);
+void node_create(char *id, int t_arr, int e_i, int i);
+void engine(int[], int);
+double *average_total_wait_time();
 int there_exists_process();
 int anything_new();
-void cleanUp(Process *heap);
-Process **findmin();
-void reset_input();
-void engine(int[], int);
+void waiting_room(Process *ptr);
 void queue_printer(Process *ptr, int);
+void reset_input();
+void cleanUp();
+Process **findmin();
+/*provided and/or modified*/
+Process *heapUnion(Process *uni);
+void heapRemove(BinomialRoot *heap, Process *node, Process *before);
+Process *heapMerge(BinomialRoot *heap1, Process *proc);
 
 int main(){
 	int print_optimum = 0;
 	int superior_quantum[10] = {0};
 	double temp_awt;
-	double min_awt_ever = 99999999;
-
+	int i, j, k = 0;
+	double min_awt_ever;
+	FILE *file;
+	min_awt_ever = INT_MAX;
 	RoR = (BinomialRoot *)malloc(sizeof(BinomialRoot));
 	if(RoR == NULL)
 		return;
 	RoR->processPtr = NULL;
 
-	FILE *file = fopen("input.txt", "r");
+	file = fopen("input.txt", "r");
 	manage_input(file);
 
-	int i, j = 0;
 	for(i = 1; i < 10; i++){
 		quantum = i;
 		engine(NULL, quantum);
-		temp_awt = average_wait_time();
-		if(temp_awt < min_awt_ever){ // new quantum is better than the ones we found before
+		temp_awt = average_total_wait_time()[0];
+		if(temp_awt < min_awt_ever){ /* new quantum is better than the ones we found before*/
 			min_awt_ever = temp_awt;
-			j = 0; // reset
+			j = 0; /* reset*/
 			superior_quantum[j++] = quantum;
 		}
 		else if(temp_awt == min_awt_ever){
@@ -87,16 +85,16 @@ int main(){
 		}
 		reset_input();
 	}
-	int k;
 	for(k = 0; k < j; k++){
 		engine(superior_quantum, superior_quantum[k]);
 		reset_input();
 	}
 }
+
 void engine(int superior_quantum[], int quantum){
-	int i;
+	int i, j;
 	if(superior_quantum != NULL){
-		// just the titles
+		/* just the titles*/
 		printf("An optimum q = %d\n", quantum);
 		printf("Time\t\tProcesses in BH\t\t\t\tPriority Value of Processes in BH\n");
 	}
@@ -106,20 +104,18 @@ void engine(int superior_quantum[], int quantum){
 		accessor = findmin();
 		microP = accessor[0];
 		if(superior_quantum != NULL){
-			// formatting issue!!
 			printf("%d\t\t", time);
-			queue_printer(RoR->processPtr, 0); // id names
+			queue_printer(RoR->processPtr, 0); /* id names*/
 			if(rec_num == 1){
 				printf("\t");
 			}
 			printf("\t\t\t\t");
 			rec_num = 0;
-			queue_printer(RoR->processPtr, 1); // factors numerically
+			queue_printer(RoR->processPtr, 1); /* factors numerically*/
 			puts("");
 		}
 		heapRemove(RoR, accessor[0], accessor[1]);
 
-		int j;
 		for(j = 0; j < quantum; j++){
 			microP->t_remains--;
 			time++;
@@ -131,55 +127,56 @@ void engine(int superior_quantum[], int quantum){
 			}
 		}
 		if(microP->t_remains <= 0){
-			cleanUp(microP);
+			cleanUp();
 		}
 		else{
-			cleanUp(microP);
+			cleanUp();
 			microP->t_arr = time;
 			microP->pri_factor = microP->t_remains * (1.0 / exp(-pow((2.0 * microP->t_remains) / (3.0 * e_max), 3)));
 			RoR->processPtr = heapUnion(microP);
 		}
 	}
 	if(superior_quantum != NULL){
-		printf("%d\t\tEMPTY", time);
+		printf("%d\t\tEMPTY", time); /* we need to print time before stating empty */
 		printf("\n\nPID\t\tWaiting Time\n");
 		for(i = 0; i < 99 && input[i] != NULL; i++){
 			printf("%-4s%18.0f\n", input[i]->process_id, input[i]->total_waited_time);
 		}
-		printf("AWT: %.3f\n\n", average_wait_time());
-
+		printf("AWT: %.0f/%d = %.3f\n\n", average_total_wait_time()[1], process_amount, average_total_wait_time()[0]);
 	}
 }
+
 Process** findmin(){
-	// use RoR well because the min is one of the roots duh
 	if(RoR == NULL)
 		exit(5);
 	Process *prev_of_min = NULL;
 	Process *temp_prev = NULL;
-	Process *current = RoR->processPtr;
-	Process *found_min = RoR->processPtr;
+	Process *current;
+	Process *found_min;
+	current = RoR->processPtr;
+	found_min = RoR->processPtr;
 	while(current != NULL){
 		if(current->pri_factor < found_min->pri_factor){
 			found_min = current;
 			prev_of_min = temp_prev;
 		}
-		else if(current->pri_factor == found_min->pri_factor){ // same e_i so there is tie breaker t_arr
+		/* same e_i so there is tie breaker t_arr*/
+		else if(current->pri_factor == found_min->pri_factor){ 
 			if(current->t_arr < found_min->t_arr){
 				found_min = current;
 				prev_of_min = temp_prev;
 			}
 		}
-		// move a step
+		/* move a step*/
 		temp_prev = current;
 		current = current->sibling;
 	}
 	triple_ptrs[0] = found_min;
 	triple_ptrs[1] = prev_of_min;
 	return triple_ptrs;
-//	return found_min->processPtr;
 }
 
-int anything_new(){
+int anything_new(){ /* hence the name*/
 	int i;
 	for(i = 0; i < process_amount; i++){
 		if(input[i]->og_t_arr == time){
@@ -189,17 +186,15 @@ int anything_new(){
 	}
 	return 0;
 }
-// for mode 0, only print the ids; else print prifactors
+
+/* for mode 0, only print the ids; else print prifactors*/
 void queue_printer(Process *ptr, int mode){
-	if(ptr == NULL){
+	if(ptr == NULL)
 		return;
-	}
-	if(ptr->child != NULL){
+	if(ptr->child != NULL)
 		queue_printer(ptr->child, mode);
-	}
-	if(ptr->sibling != NULL){
+	if(ptr->sibling != NULL)
 		queue_printer(ptr->sibling, mode);
-	}
 	if(!mode){
 		printf("%-4s", ptr->process_id);
 		rec_num++;
@@ -207,20 +202,18 @@ void queue_printer(Process *ptr, int mode){
 	else
 		printf("%s: %.3f ",ptr->process_id, ptr->pri_factor);
 }
-
+/* increments the waiting time of all processes currently in the heap*/
 void waiting_room(Process *ptr){
-	if(ptr == NULL){
+	if(ptr == NULL)
 		return;
-	}
-	if(ptr->child != NULL){
+	if(ptr->child != NULL)
 		waiting_room(ptr->child);
-	}
-	if(ptr->sibling != NULL){
+	if(ptr->sibling != NULL)
 		waiting_room(ptr->sibling);
-	}
 	ptr->total_waited_time++;
 }
 
+/* called whenever a node is supposed to be inserted*/
 Process *heapUnion(Process *uni) {
 	Process *new_head;
 	Process *prev;
@@ -282,6 +275,9 @@ Process *heapUnion(Process *uni) {
 	return new_head;
 }
 
+/* called whenever a node is to be removed from the queue
+it might be that it was just done executing
+or it could be that it is going to be re-inserted with updated values */
 void heapRemove(BinomialRoot *heap, Process *node, Process *before) {
 	BinomialRoot *temp;
 	Process *child;
@@ -315,6 +311,7 @@ void heapRemove(BinomialRoot *heap, Process *node, Process *before) {
 	free(temp);
 }
 
+/*the functions below are for extracting the input from the file*/
 void manage_input(FILE *f){
 	int i = 0;
 	char line[12];
@@ -323,29 +320,29 @@ void manage_input(FILE *f){
 		manage_line(line, i);
 		i++;
 	}
-	for(i = 0; i < 99 && input[i] != NULL; i++);/*{
-		printf("created node --- id: %s, ei: %d, t_arr: %d\n",
-			input[i]->process_id, input[i]->e_i, input[i]->t_arr);
-	}*/
-	process_amount = i; // does work don't change
+	for(i = 0; i < 99 && input[i] != NULL; i++);
+	process_amount = i; /* does work don't change*/
 }
  
 void manage_line(char *line, int i){
-	char *id = strtok(line, " \t\n");
-	char *eiptr = strtok(NULL, " \t\n");
-	char *t_arrptr = strtok(NULL, " \t\n");
+	char *id, *eiptr, *t_arrptr;
+	int ei = 0, t_arr = 0;
 
-	int ei = atoi(eiptr);
-	int t_arr = atoi(t_arrptr);
+	id = strtok(line, " \t\n");
+	eiptr = strtok(NULL, " \t\n");
+	t_arrptr = strtok(NULL, " \t\n");
+
+	ei = atoi(eiptr);
+	t_arr = atoi(t_arrptr);
 	if(ei > e_max)
 		e_max = ei;
-	node_create_returns_root(id, t_arr, ei, i);
+	node_create(id, t_arr, ei, i);
 }
 
-BinomialRoot *node_create_returns_root(char *id, int t_arr, int e_i, int i){
-
-	Process *node = (Process *)malloc(sizeof(Process));
-	if(node == NULL) return NULL;
+void node_create(char *id, int t_arr, int e_i, int i){
+	Process *node;
+	node = (Process *)malloc(sizeof(Process));
+	if(node == NULL) exit(7);
 
 	node->parent = NULL;
 	node->child = NULL;
@@ -356,50 +353,37 @@ BinomialRoot *node_create_returns_root(char *id, int t_arr, int e_i, int i){
 	node->t_remains = e_i;
 	node->t_arr = t_arr;
 	node->og_t_arr = t_arr;
-	node->nth_rodeo = 1;
 	node->total_waited_time = 0;
 	node->pri_factor = e_i;
-	
-
 	input[i] = node;
-	return heapCreate(node);
 }
 
-BinomialRoot *heapCreate(Process *node){
-	BinomialRoot *heap;
-
-	heap = (BinomialRoot *)malloc(sizeof(BinomialRoot));
-	if(heap == NULL)
-		return NULL;
-
-	heap->processPtr = node;
-	node->as_root = heap;
-	return heap;
-}
-
-double average_wait_time(){ // all nodes
+/*called to return [0] as average, [1] as total*/
+double *average_total_wait_time(){
 	int i; double t = 0;
-	for(i = 0; i < process_amount; i++){
-//		printf("%s waited this much: %f\n", input[i]->process_id, input[i]->total_waited_time);
+	for(i = 0; i < process_amount; i++)
 		t += input[i]->total_waited_time;
-	}
-	return t / process_amount;
+	times[0] = t / process_amount;
+	times[1] = t;
+	return times;
 }
 
+/* used as bool*/
 int there_exists_process(){
 	if(RoR == NULL || RoR->processPtr == NULL)
 		return 0;
 	else
 		return 1;
 }
-
-void cleanUp(Process *heap){
+/* prevents circuits in the tree, was causing infinite loops without htis function*/
+void cleanUp(){
 	microP->child = NULL;
 	microP->sibling = NULL;
 	microP->parent = NULL;
 	microP->degree = 0;
 }
 
+/* called to reset after each quantum value trial*/
 void reset_input(){
 	int i;
 	if(RoR != NULL) {
@@ -419,7 +403,7 @@ void reset_input(){
 	time = 0;
 }
 
-// don't call this function in main. union will call it
+/* only union function calls this function and it is not to be manually called*/
 Process *heapMerge(BinomialRoot *heap1, Process *proc) {
 	Process *head;
 	Process *tail;
